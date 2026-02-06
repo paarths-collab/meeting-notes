@@ -1,8 +1,13 @@
 import os
 import json
+import warnings
 from typing import Any, Optional
 import google.generativeai as genai
 from services.base import LLMService
+
+# Suppress Gemini deprecation warning
+warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
+warnings.filterwarnings("ignore", category=FutureWarning, module="google.auth")
 
 
 class GeminiLLMService(LLMService):
