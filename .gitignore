@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Environment Variables
+.env
+
+# Project Data
+data/
+audio/*.wav
+audio/*.mp3
+memory/sessions/
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+error_log.txt
+
+# Mem0
+memory/mem0_store/
+
+# Mac
+.DS_Store

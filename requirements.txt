@@ -1,0 +1,15 @@
+langgraph
+openai-whisper
+sounddevice
+numpy
+notion-client
+fastapi
+uvicorn
+pydantic
+requests
+faster-whisper
+google-generativeai
+python-dotenv
+autogen
+langchain-google-genai
+python-dateutil
