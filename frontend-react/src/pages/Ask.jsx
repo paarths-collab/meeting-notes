@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, Loader2, MessageSquare, Brain, Sparkles } from 'lucide-react'
+import { Send, Loader2, MessageSquare, Brain, Sparkles, Filter } from 'lucide-react'
 import './Ask.css'
 
 export default function AskPage() {
@@ -10,6 +10,34 @@ export default function AskPage() {
     const [loading, setLoading] = useState(false)
     const [conversation, setConversation] = useState([])
     const [error, setError] = useState('')
+    const [meetings, setMeetings] = useState([])
+    const [selectedMeeting, setSelectedMeeting] = useState('')
+    const [selectedDate, setSelectedDate] = useState('')
+
+    // Derived lists
+    const uniqueDates = [...new Set(meetings.map(m => m.created_at.split('T')[0]))].sort().reverse()
+
+    const filteredMeetings = meetings.filter(m =>
+        !selectedDate || m.created_at.startsWith(selectedDate)
+    )
+
+    useEffect(() => {
+        fetchMeetings()
+    }, [])
+
+    const fetchMeetings = async () => {
+        try {
+            const res = await fetch('/api/meetings/conversations', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            if (res.ok) {
+                const data = await res.json()
+                setMeetings(data)
+            }
+        } catch (err) {
+            console.error("Failed to fetch meetings", err)
+        }
+    }
 
     const handleAsk = async () => {
         if (!question.trim() || loading) return
@@ -29,7 +57,11 @@ export default function AskPage() {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ question: userQuestion })
+                body: JSON.stringify({
+                    question: userQuestion,
+                    meeting_id: selectedMeeting ? parseInt(selectedMeeting) : null,
+                    date: selectedDate || null
+                })
             })
 
             if (!res.ok) {
@@ -68,6 +100,44 @@ export default function AskPage() {
                     <Brain size={32} /> Ask AI
                 </h1>
                 <p>Ask questions about your past meetings using AI-powered search</p>
+            </div>
+
+            {/* Meeting Filter */}
+            <div className="filter-container glass">
+                <Filter size={16} className="filter-icon" />
+
+                {/* Date Dropdown */}
+                <select
+                    value={selectedDate}
+                    onChange={(e) => {
+                        setSelectedDate(e.target.value)
+                        setSelectedMeeting('') // Reset meeting when date changes
+                    }}
+                    className="date-select"
+                >
+                    <option value="">All Dates</option>
+                    {uniqueDates.map(date => (
+                        <option key={date} value={date}>{date}</option>
+                    ))}
+                </select>
+
+                <div className="filter-divider"></div>
+
+                {/* Meeting Dropdown */}
+                <select
+                    value={selectedMeeting}
+                    onChange={(e) => setSelectedMeeting(e.target.value)}
+                    className="meeting-select"
+                >
+                    <option value="">
+                        {selectedDate ? "All Meetings on Date" : "All Meetings"}
+                    </option>
+                    {filteredMeetings.map(m => (
+                        <option key={m.id} value={m.id}>
+                            {m.title || "Untitled"} ({new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                        </option>
+                    ))}
+                </select>
             </div>
 
             <div className="chat-container glass">

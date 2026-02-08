@@ -60,6 +60,39 @@
     color: rgba(255, 255, 255, 0.7);
 }
 
+.delete-btn {
+    opacity: 0;
+    transition: all 0.2s;
+    padding: 6px;
+    border-radius: 6px;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    margin-left: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.history-item:hover .delete-btn {
+    opacity: 1;
+}
+
+.delete-btn:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.history-item.active .delete-btn {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.history-item.active .delete-btn:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.2);
+}
+
 .history-item-meta span {
     display: flex;
     align-items: center;

@@ -49,7 +49,8 @@ def update_settings(
     # Update only provided fields
     update_data = settings_data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
-        if value is not None:
+        # Ignore None, empty strings, and masked values (***)
+        if value is not None and value != "" and not str(value).startswith("***"):
             setattr(settings, field, value)
     
     db.commit()

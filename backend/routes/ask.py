@@ -13,11 +13,15 @@ from backend.auth import get_current_user
 from backend.services.mem0_service import Mem0Service
 from backend.services.llm_service import GeminiLLMService
 
+from backend.agents.meeting_query_agent import MeetingQueryAgent
+
 router = APIRouter(prefix="/api/ask", tags=["ask"])
 
 
 class AskRequest(BaseModel):
     question: str
+    meeting_id: Optional[int] = None
+    date: Optional[str] = None  # YYYY-MM-DD
 
 
 class AskResponse(BaseModel):
@@ -43,61 +47,40 @@ def ask_question(
     
     # Initialize services
     mem0 = Mem0Service(api_key=os.getenv("MEM0_API_KEY"))
-    llm = GeminiLLMService(api_key=gemini_key, model_name="gemini-2.5-flash")
+    llm = GeminiLLMService(
+        api_key=gemini_key, 
+        model_name=os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+    )
     
     if not mem0.client:
         raise HTTPException(status_code=500, detail="Memory service unavailable")
     
-    # Search Mem0 for relevant meeting context
+    # Compute filters and context
     user_mem_id = f"user_{current_user.id}"
-    relevant_memories = mem0.search_memory(
-        query=request.question,
-        user_id=user_mem_id,
-        limit=5
-    )
-    
-    if not relevant_memories:
-        return AskResponse(
-            answer="I don't have any meeting information to answer this question. Please process some meetings first!",
-            sources=[]
-        )
-    
-    # Build context from memories
-    context = "\n\n---\n\n".join(relevant_memories)
-    
-    # Extract source meeting titles from context
-    sources = []
-    for mem in relevant_memories:
-        if "Meeting:" in mem:
-            title_line = mem.split("\n")[0]
-            title = title_line.replace("Meeting:", "").strip()
-            if title and title not in sources:
-                sources.append(title)
-    
-    # Create prompt for LLM
-    prompt = f"""You are a helpful AI assistant that answers questions about past meetings.
-
-Based on the following meeting information, answer the user's question.
-Be specific, cite which meeting the information comes from, and format your answer nicely.
-If the question cannot be answered from the context, say so politely.
-
-MEETING CONTEXT:
-{context}
-
-USER QUESTION: {request.question}
-
-Answer in a clear, helpful manner:"""
-
-    # Get answer from LLM
+    filters = None
+    if request.meeting_id:
+        filters = {"metadata": {"conversation_id": request.meeting_id}}
+    elif request.date:
+        filters = {"metadata": {"meeting_date": request.date}}
+        
     try:
-        answer = llm.generate(prompt)
+        # Initialize and run agent
+        agent = MeetingQueryAgent(llm_service=llm, mem0_service=mem0)
+        answer, sources = agent.run(
+            query=request.question,
+            user_id=user_mem_id,
+            filters=filters
+        )
+        
+        return AskResponse(
+            answer=answer,
+            sources=sources[:5]
+        )
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate answer: {e}")
-    
-    return AskResponse(
-        answer=answer,
-        sources=sources[:5]  # Limit to 5 sources
-    )
+        print(f"❌ Agent error: {e}")
+        # Fallback to simple answer?
+        raise HTTPException(status_code=500, detail=f"Agent failed to process request: {e}")
 
 
 @router.get("/memories")

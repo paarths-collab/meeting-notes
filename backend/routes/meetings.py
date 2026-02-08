@@ -27,27 +27,30 @@ def get_user_services(settings: UserSettings):
     # Build config from user settings
     llm = GeminiLLMService(
         api_key=settings.gemini_api_key or os.getenv("GEMINI_API_KEY"),
-        model_name="gemini-2.5-flash"
+        model_name=os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
     )
     
     notion = None
-    if settings.notion_token:
+    notion_token = settings.notion_token or os.getenv("NOTION_TOKEN")
+    if notion_token:
         notion = NotionTaskService(
-            auth_token=settings.notion_token,
-            database_id=settings.notion_database_id or "",
-            meeting_database_id=settings.notion_meeting_db_id or "",
-            task_database_id=settings.notion_task_db_id or ""
+            auth_token=notion_token,
+            database_id=settings.notion_database_id or os.getenv("NOTION_DATABASE_ID") or "",
+            meeting_database_id=settings.notion_meeting_db_id or os.getenv("NOTION_DATABASE_MEETING_ID") or "",
+            task_database_id=settings.notion_task_db_id or os.getenv("NOTION_DATABASE_TASK_ID") or ""
         )
         print("✅ Notion service initialized")
     else:
-        print("⚠️ Notion not configured (no token in settings)")
+        print("⚠️ Notion not configured (no token in settings/env)")
     
     slack = None
-    if settings.slack_bot_token:
-        slack = SlackService(settings.slack_bot_token)
-        print(f"✅ Slack service initialized (channel: {settings.slack_channel_id})")
+    slack_token = settings.slack_bot_token or os.getenv("SLACK_BOT_TOKEN")
+    if slack_token:
+        slack = SlackService(slack_token)
+        channel = settings.slack_channel_id or os.getenv("SLACK_CHANNEL_ID") or os.getenv("SLACK_TEST_USER_ID")
+        print(f"✅ Slack service initialized (target: {channel})")
     else:
-        print("⚠️ Slack not configured (no bot token in settings)")
+        print("⚠️ Slack not configured (no bot token in settings/env)")
     
     return llm, notion, slack
 
@@ -134,12 +137,16 @@ def process_meeting(
             detail=f"This meeting transcript already exists (ID: {existing.id}). Duplicate not added."
         )
     
+    import hashlib
     # Save conversation to DB (now with validated data)
     from datetime import datetime
+    
+    meeting_date = meeting.meeting_date  # Define for later use in Mem0
+    
     # Use manual date if provided, otherwise use current time
-    if meeting.meeting_date:
+    if meeting_date:
         try:
-            created_at = datetime.fromisoformat(meeting.meeting_date.replace('Z', '+00:00'))
+            created_at = datetime.fromisoformat(meeting_date.replace('Z', '+00:00'))
         except:
             created_at = datetime.utcnow()
     else:
@@ -159,27 +166,33 @@ def process_meeting(
     # Save tasks to DB
     from backend.utils.normalization import normalize_task_data
     
-    db_tasks = []
-    for task_data in tasks_data:
-        # Normalize and sanitize task data
-        clean_task = normalize_task_data(task_data)
-        
-        # Skip if title is empty even after normalization
-        if not clean_task["title"]:
-            continue
+    try:
+        db_tasks = []
+        for task_data in tasks_data:
+            # Normalize and sanitize task data
+            clean_task = normalize_task_data(task_data)
             
-        task = Task(
-            conversation_id=conversation.id,
-            title=clean_task["title"],
-            description=clean_task["description"],
-            assigned_to=clean_task["assigned_to"],
-            deadline=clean_task["deadline"],
-            status=clean_task["status"]
-        )
-        db.add(task)
-        db_tasks.append(task)
-    
-    db.commit()
+            # Skip if title is empty even after normalization
+            if not clean_task["title"]:
+                continue
+                
+            task = Task(
+                conversation_id=conversation.id,
+                title=clean_task["title"],
+                description=clean_task["description"],
+                assigned_to=clean_task["assigned_to"],
+                deadline=clean_task["deadline"],
+                status=clean_task["status"]
+            )
+            db.add(task)
+            db_tasks.append(task)
+        
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Database Error (Task Creation): {e}")
+        # Return partial success or full error? Let's return error to be safe
+        raise HTTPException(status_code=500, detail=f"Database Error: {str(e)}")
     
     # Store meeting in Mem0 for semantic search/Q&A
     try:
@@ -207,13 +220,26 @@ Action Items:
 Full Transcript:
 {transcript[:3000]}"""  # Limit transcript length for Mem0
             
+            # Add to Mem0 (Long-term memory)
+            user_mem_id = f"user_{current_user.id}"
+            
+            # Use Human-Readable Session ID (Title + Date)
+            clean_title = title.strip().lower().replace(" ", "_").replace(":", "").replace("/", "-")
+            clean_date = (meeting_date or "").strip().replace("/", "-")
+            # If date is invalid or empty, use created_at
+            if not clean_date:
+                clean_date = created_at.strftime("%Y-%m-%d")
+
+            session_mem_id = f"{clean_title}_{clean_date}"
+            
             mem0.add_memory(
                 text=memory_content,
-                user_id=f"user_{current_user.id}",
+                user_id=user_mem_id,
+                session_id=session_mem_id,
                 metadata={
                     "conversation_id": conversation.id,
                     "title": title,
-                    "date": conversation.created_at.isoformat()
+                    "meeting_date": created_at.strftime("%Y-%m-%d")  # Store as simple date string for filtering
                 }
             )
             print(f"🧠 Meeting stored in Mem0 for user {current_user.id}")
@@ -361,4 +387,26 @@ def get_conversation(
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
     
-    return conversation
+@router.delete("/conversations/{conversation_id}")
+def delete_conversation(
+    conversation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a conversation and its tasks."""
+    conversation = db.query(Conversation).filter(
+        Conversation.id == conversation_id,
+        Conversation.user_id == current_user.id
+    ).first()
+    
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+        
+    # Delete associated tasks
+    db.query(Task).filter(Task.conversation_id == conversation_id).delete()
+    
+    # Delete conversation
+    db.delete(conversation)
+    db.commit()
+    
+    return {"message": "Conversation deleted successfully"}

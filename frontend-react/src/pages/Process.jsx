@@ -24,8 +24,17 @@ export default function ProcessPage() {
         try {
             let body = {}
             if (inputType === 'text') {
-                if (!transcript.trim()) return
-                body = { transcript }
+                if (!transcript.trim()) return;
+                if (!manualTitle.trim() || !manualDate) {
+                    setError("Title and Date are required for text transcripts.");
+                    setLoading(false);
+                    return;
+                }
+                body = {
+                    transcript,
+                    title: manualTitle,
+                    meeting_date: manualDate
+                }
             } else if (inputType === 'link') {
                 if (!fileUrl.trim()) return
                 body = {
@@ -52,8 +61,14 @@ export default function ProcessPage() {
             })
 
             if (!res.ok) {
-                const err = await res.json()
-                throw new Error(err.detail || 'Processing failed')
+                const contentType = res.headers.get("content-type");
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Processing failed');
+                } else {
+                    const text = await res.text();
+                    throw new Error(`Server Error (${res.status}): ${text.substring(0, 100)}...`);
+                }
             }
 
             const data = await res.json()
@@ -101,12 +116,36 @@ export default function ProcessPage() {
                 </div>
 
                 {inputType === 'text' && (
-                    <textarea
-                        value={transcript}
-                        onChange={(e) => setTranscript(e.target.value)}
-                        placeholder="Paste your meeting notes or transcript here..."
-                        rows={8}
-                    />
+                    <div className="input-group">
+                        <textarea
+                            value={transcript}
+                            onChange={(e) => setTranscript(e.target.value)}
+                            placeholder="Paste your meeting notes or transcript here..."
+                            rows={8}
+                            className="text-area-input"
+                        />
+                        <div className="meta-inputs">
+                            <div className="meta-field">
+                                <label>Meeting Title</label>
+                                <input
+                                    type="text"
+                                    value={manualTitle}
+                                    onChange={(e) => setManualTitle(e.target.value)}
+                                    placeholder="e.g. Brainstorming Session"
+                                    className="text-input"
+                                />
+                            </div>
+                            <div className="meta-field">
+                                <label>Meeting Date</label>
+                                <input
+                                    type="date"
+                                    value={manualDate}
+                                    onChange={(e) => setManualDate(e.target.value)}
+                                    className="text-input"
+                                />
+                            </div>
+                        </div>
+                    </div>
                 )}
 
                 {inputType === 'link' && (

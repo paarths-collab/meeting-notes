@@ -15,13 +15,13 @@ from backend.services.base import LLMService
 class GeminiLLMService(LLMService):
     """Gemini-based LLM service implementation."""
     
-    def __init__(self, api_key: str, model_name: str = "gemini-2.5-flash"):
+    def __init__(self, api_key: str, model_name: str = "gemini-2.5-flash-lite"):
         """
         Initialize Gemini service.
         
         Args:
             api_key: Gemini API key
-            model_name: Model to use (default: gemini-2.5-flash)
+            model_name: Model to use (default: gemini-2.5-flash-lite)
         """
         self.api_key = api_key
         self.model_name = model_name

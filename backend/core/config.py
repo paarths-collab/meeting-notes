@@ -47,7 +47,7 @@ class AppConfig:
             notion_database_id=notion_db,
             notion_database_meeting_id=os.getenv("NOTION_DATABASE_MEETING_ID"),
             notion_database_task_id=os.getenv("NOTION_DATABASE_TASK_ID"),
-            gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+            gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite"),
             slack_bot_token=os.getenv("SLACK_BOT_TOKEN"),
             slack_channel_id=os.getenv("SLACK_CHANNEL_ID"),
             mem0_api_key=os.getenv("MEM0_API_KEY"),

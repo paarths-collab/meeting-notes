@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { motion } from 'framer-motion'
-import { Clock, CheckSquare, ChevronRight } from 'lucide-react'
+import { Clock, CheckSquare, ChevronRight, Trash2 } from 'lucide-react'
+
+
 import './History.css'
 
 export default function HistoryPage() {
@@ -37,6 +39,28 @@ export default function HistoryPage() {
             setSelected(data)
         } catch (err) {
             console.error(err)
+        }
+    }
+
+    const handleDelete = async (e, id) => {
+        e.stopPropagation()
+        if (!window.confirm("Are you sure you want to delete this meeting? This cannot be undone.")) return
+
+        try {
+            const res = await fetch(`/api/meetings/conversations/${id}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` }
+            })
+
+            if (res.ok) {
+                setConversations(conversations.filter(c => c.id !== id))
+                if (selected?.id === id) setSelected(null)
+            } else {
+                alert("Failed to delete meeting")
+            }
+        } catch (err) {
+            console.error(err)
+            alert("Error deleting meeting")
         }
     }
 
@@ -83,7 +107,16 @@ export default function HistoryPage() {
                                         <span><CheckSquare size={12} /> {conv.task_count} tasks</span>
                                     </div>
                                 </div>
-                                <ChevronRight size={18} className="chevron" />
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <button
+                                        className="delete-btn"
+                                        onClick={(e) => handleDelete(e, conv.id)}
+                                        title="Delete Meeting"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                    <ChevronRight size={18} className="chevron" />
+                                </div>
                             </motion.div>
                         ))
                     )}
