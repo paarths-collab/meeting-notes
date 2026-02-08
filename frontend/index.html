@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meeting Notes - Convert Meetings to Tasks</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --success: #22c55e;
+            --error: #ef4444;
+            --border: #334155;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        
+        .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
+        
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2rem;
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .logo { font-size: 1.5rem; font-weight: 700; color: var(--primary); }
+        
+        nav { display: flex; gap: 1rem; }
+        nav a {
+            color: var(--text-muted);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+        }
+        nav a:hover, nav a.active { background: var(--primary); color: white; }
+        
+        .user-info { display: flex; align-items: center; gap: 1rem; }
+        .user-email { color: var(--text-muted); font-size: 0.875rem; }
+        .btn-logout { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; }
+        
+        /* Auth Forms */
+        .auth-container {
+            max-width: 400px;
+            margin: 4rem auto;
+            background: var(--card);
+            padding: 2rem;
+            border-radius: 1rem;
+            border: 1px solid var(--border);
+        }
+        
+        .auth-container h1 { text-align: center; margin-bottom: 2rem; }
+        
+        .form-group { margin-bottom: 1.5rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; color: var(--text-muted); }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            color: var(--text);
+            font-size: 1rem;
+        }
+        .form-group input:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 0.875rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: var(--primary-dark); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .auth-switch { text-align: center; margin-top: 1.5rem; color: var(--text-muted); }
+        .auth-switch a { color: var(--primary); text-decoration: none; }
+        
+        /* Cards */
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .card-title { font-size: 1.25rem; font-weight: 600; }
+        
+        /* Tabs */
+        .tabs { display: flex; gap: 0.5rem; margin-bottom: 2rem; }
+        .tab {
+            padding: 0.75rem 1.5rem;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tab.active { background: var(--primary); border-color: var(--primary); color: white; }
+        
+        /* Task List */
+        .task-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 1rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .task-item:last-child { border-bottom: none; }
+        .task-title { font-weight: 600; margin-bottom: 0.25rem; }
+        .task-meta { color: var(--text-muted); font-size: 0.875rem; }
+        .task-status {
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-done { background: #d1fae5; color: #065f46; }
+        
+        /* Conversation List */
+        .conv-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: var(--bg);
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .conv-item:hover { background: var(--border); }
+        .conv-title { font-weight: 500; }
+        .conv-meta { color: var(--text-muted); font-size: 0.875rem; }
+        
+        /* Status indicators */
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        .status-dot.configured { background: var(--success); }
+        .status-dot.not-configured { background: var(--error); }
+        
+        /* Alert */
+        .alert {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .alert-success { background: #d1fae5; color: #065f46; }
+        .alert-error { background: #fee2e2; color: #991b1b; }
+        
+        /* Hidden */
+        .hidden { display: none !important; }
+        
+        /* Loading */
+        .loading {
+            display: flex;
+            justify-content: center;
+            padding: 2rem;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <!-- Header (shown when logged in) -->
+    <header id="appHeader" class="hidden">
+        <div class="logo">📝 Meeting Notes</div>
+        <nav>
+            <a href="#" data-page="meetings" class="active">Meetings</a>
+            <a href="#" data-page="history">History</a>
+            <a href="#" data-page="settings">Settings</a>
+        </nav>
+        <div class="user-info">
+            <span class="user-email" id="userEmail"></span>
+            <button class="btn-logout" onclick="logout()">Logout</button>
+        </div>
+    </header>
+
+    <!-- Auth Section -->
+    <div id="authSection" class="auth-container">
+        <h1 id="authTitle">Sign In</h1>
+        <form id="authForm">
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="authEmail" required placeholder="you@example.com">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="authPassword" required placeholder="••••••••">
+            </div>
+            <div id="authError" class="alert alert-error hidden"></div>
+            <button type="submit" class="btn" id="authBtn">Sign In</button>
+        </form>
+        <p class="auth-switch">
+            <span id="authSwitchText">Don't have an account?</span>
+            <a href="#" id="authSwitchLink" onclick="toggleAuthMode()">Sign Up</a>
+        </p>
+    </div>
+
+    <!-- Main App -->
+    <main id="appMain" class="container hidden">
+        <!-- Meetings Page -->
+        <section id="pageMeetings">
+            <h1 style="margin-bottom: 2rem;">Process Meeting</h1>
+            
+            <div class="card">
+                <div class="form-group">
+                    <label>Paste meeting transcript or notes:</label>
+                    <textarea id="transcriptInput" rows="8" placeholder="Meeting notes...
+Paarth needs to fix the login bug by tomorrow.
+Ravi will update the API docs by Friday."></textarea>
+                </div>
+                <button class="btn" onclick="processMeeting()">🚀 Process Meeting</button>
+            </div>
+            
+            <div id="processingResult" class="hidden">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">📋 Extracted Tasks</span>
+                    </div>
+                    <div id="tasksList"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- History Page -->
+        <section id="pageHistory" class="hidden">
+            <h1 style="margin-bottom: 2rem;">Conversation History</h1>
+            <div id="conversationsList"></div>
+        </section>
+
+        <!-- Settings Page -->
+        <section id="pageSettings" class="hidden">
+            <h1 style="margin-bottom: 2rem;">API Settings</h1>
+            
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Notion</span>
+                    <span id="notionStatus"></span>
+                </div>
+                <div class="form-group">
+                    <label>Notion Token</label>
+                    <input type="password" id="notionToken" placeholder="ntn_...">
+                </div>
+                <div class="form-group">
+                    <label>Task Database ID</label>
+                    <input type="text" id="notionDbId" placeholder="abc123...">
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Slack</span>
+                    <span id="slackStatus"></span>
+                </div>
+                <div class="form-group">
+                    <label>Bot Token</label>
+                    <input type="password" id="slackToken" placeholder="xoxb-...">
+                </div>
+                <div class="form-group">
+                    <label>Channel ID</label>
+                    <input type="text" id="slackChannel" placeholder="C0123456789">
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Gemini</span>
+                    <span id="geminiStatus"></span>
+                </div>
+                <div class="form-group">
+                    <label>API Key (optional - uses shared key if empty)</label>
+                    <input type="password" id="geminiKey" placeholder="AIza...">
+                </div>
+            </div>
+            
+            <button class="btn" onclick="saveSettings()">Save Settings</button>
+        </section>
+    </main>
+
+    <script>
+        const API_BASE = '';
+        let token = localStorage.getItem('token');
+        let isLoginMode = true;
+
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+            if (token) {
+                showApp();
+            }
+            
+            document.getElementById('authForm').addEventListener('submit', handleAuth);
+            document.querySelectorAll('nav a').forEach(a => {
+                a.addEventListener('click', e => {
+                    e.preventDefault();
+                    showPage(a.dataset.page);
+                });
+            });
+        });
+
+        // Auth
+        function toggleAuthMode() {
+            isLoginMode = !isLoginMode;
+            document.getElementById('authTitle').textContent = isLoginMode ? 'Sign In' : 'Sign Up';
+            document.getElementById('authBtn').textContent = isLoginMode ? 'Sign In' : 'Sign Up';
+            document.getElementById('authSwitchText').textContent = isLoginMode ? "Don't have an account?" : "Already have an account?";
+            document.getElementById('authSwitchLink').textContent = isLoginMode ? 'Sign Up' : 'Sign In';
+        }
+
+        async function handleAuth(e) {
+            e.preventDefault();
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            const errorEl = document.getElementById('authError');
+            
+            try {
+                if (isLoginMode) {
+                    // Login
+                    const formData = new FormData();
+                    formData.append('username', email);
+                    formData.append('password', password);
+                    
+                    const res = await fetch(`${API_BASE}/api/auth/login`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (!res.ok) throw new Error('Invalid credentials');
+                    
+                    const data = await res.json();
+                    token = data.access_token;
+                    localStorage.setItem('token', token);
+                    showApp();
+                } else {
+                    // Register
+                    const res = await fetch(`${API_BASE}/api/auth/register`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, password })
+                    });
+                    
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.detail || 'Registration failed');
+                    }
+                    
+                    // Auto login after register
+                    isLoginMode = true;
+                    await handleAuth(e);
+                }
+            } catch (err) {
+                errorEl.textContent = err.message;
+                errorEl.classList.remove('hidden');
+            }
+        }
+
+        function logout() {
+            token = null;
+            localStorage.removeItem('token');
+            location.reload();
+        }
+
+        async function showApp() {
+            document.getElementById('authSection').classList.add('hidden');
+            document.getElementById('appHeader').classList.remove('hidden');
+            document.getElementById('appMain').classList.remove('hidden');
+            
+            // Get user info
+            try {
+                const res = await fetch(`${API_BASE}/api/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const user = await res.json();
+                document.getElementById('userEmail').textContent = user.email;
+            } catch (err) {
+                logout();
+            }
+            
+            showPage('meetings');
+        }
+
+        function showPage(page) {
+            document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
+            document.querySelector(`nav a[data-page="${page}"]`).classList.add('active');
+            
+            document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(`page${page.charAt(0).toUpperCase() + page.slice(1)}`).classList.remove('hidden');
+            
+            if (page === 'history') loadHistory();
+            if (page === 'settings') loadSettings();
+        }
+
+        // Meetings
+        async function processMeeting() {
+            const transcript = document.getElementById('transcriptInput').value;
+            if (!transcript.trim()) return alert('Please enter a transcript');
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/meetings/process`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ transcript })
+                });
+                
+                if (!res.ok) throw new Error('Processing failed');
+                
+                const data = await res.json();
+                
+                // Show results
+                const tasksList = document.getElementById('tasksList');
+                tasksList.innerHTML = data.tasks.map(t => `
+                    <div class="task-item">
+                        <div>
+                            <div class="task-title">${t.title}</div>
+                            <div class="task-meta">👤 ${t.owner} · 📅 ${t.deadline}</div>
+                        </div>
+                        <span class="task-status status-${t.status}">${t.status}</span>
+                    </div>
+                `).join('');
+                
+                document.getElementById('processingResult').classList.remove('hidden');
+                
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        // History
+        async function loadHistory() {
+            try {
+                const res = await fetch(`${API_BASE}/api/meetings/conversations`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const conversations = await res.json();
+                
+                const list = document.getElementById('conversationsList');
+                if (conversations.length === 0) {
+                    list.innerHTML = '<p style="color: var(--text-muted)">No conversations yet. Process a meeting to get started.</p>';
+                    return;
+                }
+                
+                list.innerHTML = conversations.map(c => `
+                    <div class="conv-item" onclick="viewConversation(${c.id})">
+                        <div>
+                            <div class="conv-title">${c.title || 'Meeting'}</div>
+                            <div class="conv-meta">${new Date(c.created_at).toLocaleString()}</div>
+                        </div>
+                        <div class="conv-meta">${c.task_count} tasks</div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function viewConversation(id) {
+            // TODO: Show conversation detail modal
+            alert('Conversation detail view coming soon!');
+        }
+
+        // Settings
+        async function loadSettings() {
+            try {
+                const res = await fetch(`${API_BASE}/api/settings/`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const settings = await res.json();
+                
+                const statusHtml = (configured) => configured 
+                    ? '<span class="status-dot configured"></span>Configured' 
+                    : '<span class="status-dot not-configured"></span>Not configured';
+                
+                document.getElementById('notionStatus').innerHTML = statusHtml(settings.notion_configured);
+                document.getElementById('slackStatus').innerHTML = statusHtml(settings.slack_configured);
+                document.getElementById('geminiStatus').innerHTML = statusHtml(settings.gemini_configured);
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function saveSettings() {
+            const settings = {
+                notion_token: document.getElementById('notionToken').value || null,
+                notion_task_db_id: document.getElementById('notionDbId').value || null,
+                slack_bot_token: document.getElementById('slackToken').value || null,
+                slack_channel_id: document.getElementById('slackChannel').value || null,
+                gemini_api_key: document.getElementById('geminiKey').value || null
+            };
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/settings/`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings)
+                });
+                
+                if (res.ok) {
+                    alert('Settings saved!');
+                    loadSettings();
+                }
+            } catch (err) {
+                alert('Error saving settings');
+            }
+        }
+    </script>
+</body>
+</html>

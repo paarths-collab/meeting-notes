@@ -10,12 +10,15 @@ env/
 
 # Environment Variables
 .env
+.env.local
 
 # Project Data
 data/
 audio/*.wav
 audio/*.mp3
-memory/sessions/
+backend/memory/sessions/
+backend/memory/mem0_store/
+test_backend.py
 
 # VS Code
 .vscode/
@@ -24,8 +27,14 @@ memory/sessions/
 *.log
 error_log.txt
 
-# Mem0
-memory/mem0_store/
+# Frontend (React/Node)
+node_modules/
+dist/
+build/
+coverage/
 
 # Mac
 .DS_Store
+
+# Temporary
+run_server.bat
